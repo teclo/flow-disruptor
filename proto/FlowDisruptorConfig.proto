@@ -1,0 +1,9 @@
+message FlowDisruptorConfig {
+    repeated FlowDisruptorProfile profile = 1;
+}
+
+message FlowDisruptorProfile {
+    required string id = 1;
+    optional string filter = 2;
+    optional double target_rtt = 3;
+}
