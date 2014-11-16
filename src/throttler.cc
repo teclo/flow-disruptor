@@ -5,6 +5,8 @@
 
 #include "throttler.h"
 
+#include "log.h"
+
 Throttler::Throttler(State* state)
     : enabled_(false),
       tick_timer_(state, this, std::mem_fn(&Throttler::tick)) {
@@ -45,9 +47,36 @@ void Throttler::tick() {
 }
 
 void Throttler::recompute() {
+    uint64_t actual_throttle = std::max(throttle_kbps_, INT64_C(0));
+
     // 0.1 seconds of capacity.
-    max_capacity_ = throttle_kbps_ * 1000 / 8.0 * 0.1;
+    max_capacity_ = actual_throttle * 1000 / 8.0 * 0.1;
     capacity_ = std::min(max_capacity_, capacity_);
     // Ticks every 0.001 seconds.
     capacity_per_tick_ = max_capacity_ * 0.01;
 }
+
+void Throttler::apply(const LinkProperties& properties) {
+    int32_t delta = properties.throughput_kbps_change();
+
+    if (delta) {
+        throttle_kbps_ += delta;
+        info("Applying throughput change of %d (now %ld)",
+             delta,
+             throttle_kbps_);
+        recompute();
+    }
+}
+
+void Throttler::revert(const LinkProperties& properties) {
+    int32_t delta = properties.throughput_kbps_change();
+
+    if (delta) {
+        throttle_kbps_ -= delta;
+        info("Reverting throughput change of %d (now %ld)",
+             delta,
+             throttle_kbps_);
+        recompute();
+    }
+}
+

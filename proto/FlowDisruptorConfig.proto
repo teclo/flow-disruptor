@@ -18,8 +18,12 @@ message TimedEvent {
     optional double trigger_time = 1;
     optional double duration = 2;
     optional double extra_rtt = 3;
+
+    optional LinkProperties downlink = 6;
+    optional LinkProperties uplink = 7;
 }
 
 message LinkProperties {
     optional uint32 throughput_kbps = 1;
+    optional int32 throughput_kbps_change = 2;
 }

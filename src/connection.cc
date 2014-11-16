@@ -180,17 +180,23 @@ Connection::~Connection() {
 }
 
 void Connection::apply_timed_effect(const TimedEvent& event) {
-    info("Applying extra delay of %lf", event.extra_rtt());
     if (event.has_extra_rtt()) {
+        info("Applying extra delay of %lf", event.extra_rtt());
         client_.set_delay(client_.delay() + event.extra_rtt());
     }
+
+    client_.throttler()->apply(event.downlink());
+    server_.throttler()->apply(event.uplink());
 }
 
 void Connection::revert_timed_effect(const TimedEvent& event) {
-    info("Reverting extra delay of %lf", event.extra_rtt());
     if (event.has_extra_rtt()) {
+        info("Reverting extra delay of %lf", event.extra_rtt());
         client_.set_delay(client_.delay() - event.extra_rtt());
     }
+
+    client_.throttler()->revert(event.downlink());
+    server_.throttler()->revert(event.uplink());
 }
 
 void Connection::receive(Packet* p) {
