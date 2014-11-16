@@ -11,7 +11,8 @@ include_directories(${PROTOBUF_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 PROTOBUF_GENERATE_CPP(PROTO_SRCS PROTO_HDRS
-                      proto/FlowDisruptorConfig.proto)
+                      proto/FlowDisruptorConfig.proto
+                      proto/PacketHeader.proto)
 
 find_library(PCAP pcap)
 find_library(GFLAGS gflags)
@@ -29,6 +30,7 @@ add_executable(flow-disruptor
                src/packet.cc
                src/pcap-dumper.cc
                src/strutil.cc
+               src/throttler.cc
                ${PROTO_SRCS} ${PROTO_HDRS}) 
 
 target_link_libraries(flow-disruptor

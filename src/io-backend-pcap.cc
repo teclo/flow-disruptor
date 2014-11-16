@@ -91,11 +91,7 @@ public:
                  pcap_datalink_val_to_name(pcap_datalink(pcap_)));
         }
 
-        uint8_t* buf = (uint8_t*) malloc(length);
-        memcpy(buf, frame, length);
-
-        p->init(buf, length, iface());
-        p->owner_ = BUFFER_OWNER_APPLICATION;
+        p->init(frame, length, iface());
         p->from_iface_ = iface();
 
         return true;
@@ -116,24 +112,6 @@ public:
         }
 
         return true;
-    }
-
-    Packet* retain_packet(Packet* p) {
-        assert(p->owner_ == BUFFER_OWNER_APPLICATION);
-
-        Packet* copy = new Packet();
-        *copy = *p;
-
-        p->owner_ = BUFFER_OWNER_BACKEND;
-
-        return copy;
-    }
-
-    void release_packet(Packet* p) {
-        if (p->owner_ == BUFFER_OWNER_APPLICATION) {
-            free(p->ethh_);
-            p->ethh_ = NULL;
-        }
     }
 
 private:

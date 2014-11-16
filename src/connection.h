@@ -13,6 +13,7 @@
 #include "connection-table.h"
 #include "pcap-dumper.h"
 #include "state.h"
+#include "throttler.h"
 
 class TcpFlow {
 public:
@@ -24,6 +25,7 @@ public:
     void set_other(TcpFlow* other) { other_ = other; }
 
     IoInterface* iface() { return iface_; }
+    Throttler* throttler() { return &throttler_; }
 
     void transmit_timeout();
 
@@ -68,6 +70,8 @@ private:
     uint32_t snd_wl2_;
     // Advertised window space
     uint32_t snd_wnd_;
+
+    Throttler throttler_;
 };
 
 // Collection of pointers that make up a TCP packet
@@ -95,8 +99,8 @@ public:
 protected:
     explicit Connection(Profile* profile, Packet* p, State* state);
 
-    void apply_timed_effect(const FlowDisruptorTimedEvent& event);
-    void revert_timed_effect(const FlowDisruptorTimedEvent& event);
+    void apply_timed_effect(const TimedEvent& event);
+    void revert_timed_effect(const TimedEvent& event);
 
 private:
     State* state_;

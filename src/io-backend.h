@@ -44,18 +44,6 @@ public:
     // Flush outbound packets.
     virtual void flush() { }
 
-    // ** Memory management
-
-    // Request ownership of the backing storage of this packet from
-    // the for an indefinite time. Does not modify the packet. Returns
-    // a pointer to a newly allocated packet, with a memory buffer
-    // that has the same contents as the original packet's buffer. The
-    // pointer might be to the same or different memory.
-    virtual Packet* retain_packet(Packet* p) = 0;
-
-    // Release a packet's memory.
-    virtual void release_packet(Packet* p) = 0;
-
     // ** Misc.
 
     // Return a file descriptor that can be select()ed on to wait for

@@ -6,6 +6,7 @@
 #include "connection.h"
 
 #include <functional>
+#include <google/protobuf/text_format.h>
 
 #include "io-backend.h"
 #include "log.h"
@@ -19,7 +20,8 @@ TcpFlow::TcpFlow(State* state, Profile* profile,
       transmit_timer_(state, this, std::mem_fn(&TcpFlow::transmit_timeout)),
       delay_s_(0),
       received_rst_(false),
-      received_fin_(false) {
+      received_fin_(false),
+      throttler_(state) {
     if (profile->profile_config().dump_pcap()) {
         if (!dumper_.open()) {
             fail("Failed to open trace file.");
@@ -34,10 +36,10 @@ TcpFlow::~TcpFlow() {
 }
 
 void TcpFlow::record_packet_rx(Packet* p) {
-    if (p->tcph_->fin) {
+    if (p->tcp().fin()) {
         received_fin_ = true;
     }
-    if (p->tcph_->rst) {
+    if (p->tcp().rst()) {
         received_rst_ = true;
     }
 
@@ -47,10 +49,15 @@ void TcpFlow::record_packet_rx(Packet* p) {
 
 void TcpFlow::queue_packet_tx(Packet* p) {
     // FIXME: Update sequence number state.
-    packets_.push_back(std::make_pair(ev_now(state_->loop) + delay_s_,
-                                      p->from_iface_->io()->retain_packet(p)));
-    transmit();
-    reschedule_transmit_timer();
+
+    auto callback = [&] (Packet* clone) {
+        packets_.push_back(std::make_pair(ev_now(state_->loop) + delay_s_,
+                                          clone));
+        transmit();
+    };
+
+    throttler_.insert(p->length_, std::bind(callback,
+                                            new Packet(*p)));
 }
 
 void TcpFlow::reschedule_transmit_timer() {
@@ -77,16 +84,17 @@ void TcpFlow::transmit() {
         packets_.pop_front();
         delete p;
     }
+
+    reschedule_transmit_timer();
 }
 
 void TcpFlow::transmit_timeout() {
     transmit();
-    reschedule_transmit_timer();
 }
 
 bool TcpFlow::is_valid_synack(Packet* p) {
     // FIXME: Stub
-    if (p->tcph_->syn && p->tcph_->ack) {
+    if (p->tcp().syn() && p->tcp().ack()) {
         return true;
     }
 
@@ -95,7 +103,7 @@ bool TcpFlow::is_valid_synack(Packet* p) {
 
 bool TcpFlow::is_valid_3whs_ack(Packet* p) {
     // FIXME: Stub
-    if (!p->tcph_->syn && p->tcph_->ack) {
+    if (!p->tcp().syn() && p->tcp().ack()) {
         return true;
     }
 
@@ -104,7 +112,7 @@ bool TcpFlow::is_valid_3whs_ack(Packet* p) {
 
 bool TcpFlow::is_identical_syn(Packet* p) {
     // FIXME: Stub
-    if (p->tcph_->syn && !p->tcph_->ack) {
+    if (p->tcp().syn() && !p->tcp().ack()) {
         return true;
     }
 
@@ -113,7 +121,7 @@ bool TcpFlow::is_identical_syn(Packet* p) {
 
 bool TcpFlow::is_identical_synack(Packet* p) {
     // FIXME: Stub
-    if (p->tcph_->syn && p->tcph_->ack) {
+    if (p->tcp().syn() && p->tcp().ack()) {
         return true;
     }
 
@@ -134,6 +142,14 @@ Connection::Connection(Profile* profile, Packet* p, State* state)
 
     client_.set_other(&server_);
     server_.set_other(&client_);
+
+    if (profile->profile_config().has_downlink()) {
+        client_.throttler()->enable(profile->profile_config().downlink());
+    }
+
+    if (profile->profile_config().has_uplink()) {
+        server_.throttler()->enable(profile->profile_config().uplink());
+    }
 
     client_.record_packet_rx(p);
     server_.queue_packet_tx(p);
@@ -163,14 +179,18 @@ Connection::~Connection() {
     }
 }
 
-void Connection::apply_timed_effect(const FlowDisruptorTimedEvent& event) {
+void Connection::apply_timed_effect(const TimedEvent& event) {
     info("Applying extra delay of %lf", event.extra_rtt());
-    client_.set_delay(client_.delay() + event.extra_rtt());
+    if (event.has_extra_rtt()) {
+        client_.set_delay(client_.delay() + event.extra_rtt());
+    }
 }
 
-void Connection::revert_timed_effect(const FlowDisruptorTimedEvent& event) {
+void Connection::revert_timed_effect(const TimedEvent& event) {
     info("Reverting extra delay of %lf", event.extra_rtt());
-    client_.set_delay(client_.delay() - event.extra_rtt());
+    if (event.has_extra_rtt()) {
+        client_.set_delay(client_.delay() - event.extra_rtt());
+    }
 }
 
 void Connection::receive(Packet* p) {
@@ -178,6 +198,12 @@ void Connection::receive(Packet* p) {
     TcpFlow* target_flow = source_flow->other();
 
     bool from_client = source_flow == &client_;
+
+    // {
+    //     std::string text;
+    //     google::protobuf::TextFormat::PrintToString(*p, &text);
+    //     info("rx: %s\n", text.c_str());
+    // }
 
     source_flow->record_packet_rx(p);
 
@@ -198,6 +224,9 @@ void Connection::receive(Packet* p) {
             // Give up on the connection.
             warn("Handshake confusion, expected SYN-ACK from server. "
                  "Bailing out.\n");
+            std::string text;
+            google::protobuf::TextFormat::PrintToString(*p, &text);
+            warn("packet: %s\n", text.c_str());
             goto fail;
         }
         // Note: we don't support SYN-SYN connection opening.
@@ -271,10 +300,12 @@ public:
 
 Connection* Connection::make(Profile* profile, Packet* p, State* state) {
     Connection* connection;
-    if (p->iph_) {
+    if (p->has_ipv4()) {
         connection = new ConnectionIpv4(profile, p, state);
-    } else {
+    } else if (p->has_ipv6()) {
         connection = new ConnectionIpv6(profile, p, state);
+    } else {
+        fail("TCP without IPv4 or IPv6?");
     }
 
     state->connections->add_connection_for_packet(connection, p);

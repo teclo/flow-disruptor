@@ -8,13 +8,18 @@ message FlowDisruptorProfile {
     optional bool dump_pcap = 5;
 
     optional double target_rtt = 3;
+    optional LinkProperties downlink = 6;
+    optional LinkProperties uplink = 7;
 
-    repeated FlowDisruptorTimedEvent timed_event = 4;
+    repeated TimedEvent timed_event = 4;
 }
 
-message FlowDisruptorTimedEvent {
+message TimedEvent {
     optional double trigger_time = 1;
     optional double duration = 2;
     optional double extra_rtt = 3;
 }
 
+message LinkProperties {
+    optional uint32 throughput_kbps = 1;
+}

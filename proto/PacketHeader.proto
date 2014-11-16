@@ -1,0 +1,27 @@
+message PacketHeader {
+    optional IPHeader ipv4 = 1;
+    optional IPHeader ipv6 = 2;
+    optional TCPHeader tcp = 3;
+}
+
+message IPHeader {
+    repeated uint32 saddr = 1 [packed=true];
+    repeated uint32 daddr = 2 [packed=true];
+
+    optional bool is_ip_fragment = 3;
+}
+
+message TCPHeader {
+    optional bool syn = 1;
+    optional bool rst = 2;
+    optional bool fin = 3;
+    optional bool ack = 4;
+
+    optional uint32 source_port = 5;
+    optional uint32 dest_port = 6;
+
+    optional uint32 seq = 7;
+    optional uint32 ack_seq = 8;
+    optional uint32 end_seq = 9;
+}
+

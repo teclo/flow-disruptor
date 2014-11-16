@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 4 indent-tabs-mode: nil -*- */
 /*
- * Copyright 2011 Teclo Networks AG
+ * Copyright 2014 Teclo Networks AG
  */
 
 #include "connection-table.h"
@@ -10,44 +10,51 @@
 #include "connection.h"
 
 static void connection_key_for_packet_v4(connection_key_v4* key, Packet* p) {
+    uint32_t saddr = p->ipv4().saddr(0);
+    uint32_t daddr = p->ipv4().daddr(0);
+
     /* The key should be the same in both directions, so the
        lower-valued of source or destination {ip,port} is always used as
        the first endpoint. */
-    if ((p->iph_->saddr <  p->iph_->daddr) ||
-        (p->iph_->saddr == p->iph_->daddr && p->tcph_->source < p->tcph_->dest)) {
-        key->addr1 = p->iph_->saddr;
-        key->port1 = p->tcph_->source;
-        key->addr2 = p->iph_->daddr;
-        key->port2 = p->tcph_->dest;
+    if ((saddr <  daddr) ||
+        (saddr == daddr && p->tcp().source_port() < p->tcp().dest_port())) {
+        key->addr1 = saddr;;
+        key->port1 = p->tcp().source_port();
+        key->addr2 = daddr;
+        key->port2 = p->tcp().dest_port();
     } else {
-        key->addr1 = p->iph_->daddr;
-        key->port1 = p->tcph_->dest;
-        key->addr2 = p->iph_->saddr;
-        key->port2 = p->tcph_->source;
+        key->addr1 = daddr;
+        key->port1 = p->tcp().dest_port();
+        key->addr2 = saddr;
+        key->port2 = p->tcp().source_port();
     }
 }
 
 static void connection_key_for_packet_v6(connection_key_v6* key, Packet* p) {
-    int cmp = memcmp(&p->ip6h_->saddr, &p->ip6h_->daddr, 16);
-    if((cmp < 0) || (cmp == 0 && p->tcph_->source < p->tcph_->dest)) {
-        memcpy(&key->addr1, &p->ip6h_->saddr, 16);
-        key->port1 = p->tcph_->source;
-        memcpy(&key->addr2, &p->ip6h_->daddr, 16);
-        key->port2 = p->tcph_->dest;
+    const uint32_t* saddr = p->ipv6().saddr().data();
+    const uint32_t* daddr = p->ipv6().daddr().data();
+
+    int cmp = memcmp(saddr, daddr, 16);
+    if((cmp < 0) ||
+       (cmp == 0 && p->tcp().source_port() < p->tcp().dest_port())) {
+        memcpy(&key->addr1, saddr, 16);
+        key->port1 = p->tcp().source_port();
+        memcpy(&key->addr2, daddr, 16);
+        key->port2 = p->tcp().dest_port();
         key->pad = 0;
     } else {
-        memcpy(&key->addr1, &p->ip6h_->daddr, 16);
-        key->port1 = p->tcph_->dest;
-        memcpy(&key->addr2, &p->ip6h_->saddr, 16);
-        key->port2 = p->tcph_->source;
+        memcpy(&key->addr1, daddr, 16);
+        key->port1 = p->tcp().dest_port();
+        memcpy(&key->addr2, saddr, 16);
+        key->port2 = p->tcp().source_port();
         key->pad = 0;
     }
 }
 
 void ConnectionTable::connection_key_for_packet(ConnectionKey* key, Packet* p) {
-    assert(p->tcph_ != NULL);
+    assert(p->has_tcp());
 
-    if (p->iph_) {
+    if (p->has_ipv4()) {
         connection_key_for_packet_v4(&key->key_v4, p);
     } else {
         connection_key_for_packet_v6(&key->key_v6, p);
@@ -72,7 +79,7 @@ public:
         ConnectionKey* key = connection->key();
         ConnectionTable::connection_key_for_packet(key, p);
 
-        if (p->iph_) {
+        if (p->has_ipv4()) {
             connection_table_v4[key->key_v4] = connection;
         } else {
             connection_table_v6[key->key_v6] = connection;
@@ -82,7 +89,7 @@ public:
     Connection* get_connection_for_packet(Packet* p) {
         ConnectionKey key;
         ConnectionTable::connection_key_for_packet(&key, p);
-        if (p->iph_) {
+        if (p->has_ipv4()) {
             auto it = connection_table_v4.find(key.key_v4);
             if (it == connection_table_v4.end()) {
                 return NULL;

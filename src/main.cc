@@ -24,7 +24,7 @@ static void handle_tcp(Packet* p) {
     Connection* connection = state.connections->get_connection_for_packet(p);
 
     if (!connection) {
-        if (p->tcph_->syn && !p->tcph_->ack) {
+        if (p->tcp().syn() && !p->tcp().ack()) {
             for (auto profile : state.config.profiles_by_priority()) {
                 if (profile->filter()->packet_matches_filter(p)) {
                     connection = Connection::make(profile, p, &state);
@@ -50,14 +50,14 @@ static void handle_packet(struct ev_loop *loop, ev_io *w, int revents) {
             return;
         }
 
-        if (p.tcph_) {
+        if (p.has_tcp()) {
             handle_tcp(&p);
         } else {
             // Forward all other packets straight through
             p.from_iface_->other()->io()->inject(&p);
         }
 
-        io->release_packet(&p);
+        p.release();
     }
 }
 
