@@ -8,13 +8,16 @@
 
 #include <cstdint>
 #include <deque>
+#include <string>
 
 #include "connection-table.h"
+#include "pcap-dumper.h"
 #include "state.h"
 
 class TcpFlow {
 public:
-    TcpFlow(State* state, IoInterface* iface_);
+    TcpFlow(State* state, Profile* profile,
+            IoInterface* iface, const std::string& id);
     ~TcpFlow();
 
     TcpFlow* other() { return other_; }
@@ -24,7 +27,8 @@ public:
 
     void transmit_timeout();
 
-    void queue_packet(Packet* p);
+    void record_packet_rx(Packet* p);
+    void queue_packet_tx(Packet* p);
 
     bool is_valid_synack(Packet* p);
     bool is_valid_3whs_ack(Packet* p);
@@ -41,6 +45,8 @@ private:
     State* state_;
     TcpFlow* other_;
     IoInterface* iface_;
+    PcapDumper dumper_;
+
     // Packet transmit queue. The packet at the head of the queue
     // should be transmitted at the timestamp indicated in the first
     // element of the pair.
@@ -48,6 +54,9 @@ private:
     Timer<TcpFlow> transmit_timer_;
 
     double delay_s_;
+
+    bool received_rst_;
+    bool received_fin_;
 
     // First unacknowledged sequence number.
     uint32_t snd_una_;
@@ -96,6 +105,7 @@ private:
 
     ConnectionState connection_state_;
     ConnectionKey key_;
+    std::string id_;
     TcpFlow client_;
     TcpFlow server_;
     Timer<Connection> idle_timer_;

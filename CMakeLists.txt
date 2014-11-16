@@ -27,6 +27,8 @@ add_executable(flow-disruptor
                src/io-backend-pcap.cc
                src/log.cc
                src/packet.cc
+               src/pcap-dumper.cc
+               src/strutil.cc
                ${PROTO_SRCS} ${PROTO_HDRS}) 
 
 target_link_libraries(flow-disruptor

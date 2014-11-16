@@ -9,12 +9,22 @@
 
 #include "io-backend.h"
 #include "log.h"
+#include "strutil.h"
 
-TcpFlow::TcpFlow(State* state, IoInterface* iface)
+TcpFlow::TcpFlow(State* state, Profile* profile,
+                 IoInterface* iface, const std::string& id)
     : state_(state),
       iface_(iface),
+      dumper_(iface->name() + "-" + id + ".cap"),
       transmit_timer_(state, this, std::mem_fn(&TcpFlow::transmit_timeout)),
-      delay_s_(0) {
+      delay_s_(0),
+      received_rst_(false),
+      received_fin_(false) {
+    if (profile->profile_config().dump_pcap()) {
+        if (!dumper_.open()) {
+            fail("Failed to open trace file.");
+        }
+    }
 }
 
 TcpFlow::~TcpFlow() {
@@ -23,7 +33,19 @@ TcpFlow::~TcpFlow() {
     }
 }
 
-void TcpFlow::queue_packet(Packet* p) {
+void TcpFlow::record_packet_rx(Packet* p) {
+    if (p->tcph_->fin) {
+        received_fin_ = true;
+    }
+    if (p->tcph_->rst) {
+        received_rst_ = true;
+    }
+
+    // FIXME: Update sequence number state.
+    dumper_.dump_packet(p);
+}
+
+void TcpFlow::queue_packet_tx(Packet* p) {
     // FIXME: Update sequence number state.
     packets_.push_back(std::make_pair(ev_now(state_->loop) + delay_s_,
                                       p->from_iface_->io()->retain_packet(p)));
@@ -50,6 +72,7 @@ void TcpFlow::transmit() {
         Packet* p = packets_.front().second;
 
         iface_->io()->inject(p);
+        dumper_.dump_packet(p);
 
         packets_.pop_front();
         delete p;
@@ -102,8 +125,9 @@ Connection::Connection(Profile* profile, Packet* p, State* state)
       profile_(profile),
       first_syn_timestamp_(ev_now(state_->loop)),
       connection_state_(STATE_SYN),
-      client_(state, p->from_iface_),
-      server_(state, p->from_iface_->other()),
+      id_(stringprintf("%.9lf", ev_time())),
+      client_(state, profile, p->from_iface_, id_),
+      server_(state, profile, p->from_iface_->other(), id_),
       idle_timer_(state, this, std::mem_fn(&Connection::close)) {
     info("New connection %p using profile %s\n", this,
          profile->profile_config().id().c_str());
@@ -111,7 +135,8 @@ Connection::Connection(Profile* profile, Packet* p, State* state)
     client_.set_other(&server_);
     server_.set_other(&client_);
 
-    server_.queue_packet(p);
+    client_.record_packet_rx(p);
+    server_.queue_packet_tx(p);
 
     idle_timer_.reschedule(120);
 
@@ -153,6 +178,8 @@ void Connection::receive(Packet* p) {
     TcpFlow* target_flow = source_flow->other();
 
     bool from_client = source_flow == &client_;
+
+    source_flow->record_packet_rx(p);
 
     switch (connection_state_) {
     case STATE_SYN:
@@ -200,8 +227,9 @@ void Connection::receive(Packet* p) {
         break;
     }
 
-    target_flow->queue_packet(p);
+    target_flow->queue_packet_tx(p);
     idle_timer_.reschedule(120);
+
     return;
 
 fail:
