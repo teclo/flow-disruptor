@@ -50,14 +50,13 @@ void TcpFlow::record_packet_rx(Packet* p) {
 void TcpFlow::queue_packet_tx(Packet* p) {
     // FIXME: Update sequence number state.
 
-    auto callback = [&] (Packet* clone) {
+    auto callback = [&] (Packet copy) {
         packets_.push_back(std::make_pair(ev_now(state_->loop) + delay_s_,
-                                          clone));
+                                          new Packet(copy)));
         transmit();
     };
 
-    throttler_.insert(p->length_, std::bind(callback,
-                                            new Packet(*p)));
+    throttler_.insert(p->length_, std::bind(callback, *p));
 }
 
 void TcpFlow::reschedule_transmit_timer() {

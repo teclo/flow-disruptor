@@ -9,12 +9,18 @@
 
 Throttler::Throttler(State* state)
     : enabled_(false),
-      tick_timer_(state, this, std::mem_fn(&Throttler::tick)) {
+      tick_timer_(state, this, std::mem_fn(&Throttler::tick)),
+      queued_cost_(0),
+      max_queue_(0) {
 }
 
 void Throttler::enable(const LinkProperties& properties) {
     enabled_ = true;
     throttle_kbps_ = properties.throughput_kbps();
+    if (properties.has_max_queue_bytes()) {
+        max_queue_ = properties.max_queue_bytes();
+    }
+
     recompute();
     tick_timer_.reschedule(0.001);
 }
@@ -25,22 +31,26 @@ void Throttler::insert(uint64_t cost, const Throttler::Callback& callback) {
     } else if (capacity_ > cost) {
         capacity_ -= cost;
         callback();
+    } if (max_queue_ && queued_cost_ > max_queue_) {
+        // Queue full, drop the packet.
     } else {
-        callbacks_.push_back(std::make_pair(cost, callback));
+        queue_.push_back(std::make_pair(cost, callback));
+        queued_cost_ += cost;
     }
 }
 
 void Throttler::tick() {
     capacity_ = std::min(max_capacity_,
                          capacity_ + capacity_per_tick_);
-    while (!callbacks_.empty()) {
-        uint64_t cost = callbacks_.front().first;
+    while (!queue_.empty()) {
+        uint64_t cost = queue_.front().first;
         if (capacity_ < cost) {
             break;
         }
         capacity_ -= cost;
-        callbacks_.front().second();
-        callbacks_.pop_front();
+        queued_cost_ -= cost;
+        queue_.front().second();
+        queue_.pop_front();
     }
 
     tick_timer_.reschedule(0.001);
