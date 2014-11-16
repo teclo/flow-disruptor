@@ -27,8 +27,6 @@ static void handle_tcp(Packet* p) {
         if (p->tcph_->syn && !p->tcph_->ack) {
             for (auto profile : state.config.profiles_by_priority()) {
                 if (profile->filter()->packet_matches_filter(p)) {
-                    printf("syn for profile %s\n",
-                           profile->profile_config().id().c_str());
                     connection = Connection::make(profile, p, &state);
                     return;
                 }

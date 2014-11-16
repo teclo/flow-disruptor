@@ -31,6 +31,7 @@ public:
     bool is_identical_syn(Packet* p);
     bool is_identical_synack(Packet* p);
 
+    double delay() const { return delay_s_; }
     void set_delay(double delay_s) { delay_s_ = delay_s; }
 
 private:
@@ -63,8 +64,7 @@ private:
 // Collection of pointers that make up a TCP packet
 class Connection {
 public:
-    virtual ~Connection() {
-    }
+    virtual ~Connection();
 
     void receive(Packet* p);
     void close();
@@ -86,6 +86,9 @@ public:
 protected:
     explicit Connection(Profile* profile, Packet* p, State* state);
 
+    void apply_timed_effect(const FlowDisruptorTimedEvent& event);
+    void revert_timed_effect(const FlowDisruptorTimedEvent& event);
+
 private:
     State* state_;
     Profile* profile_;
@@ -96,6 +99,8 @@ private:
     TcpFlow client_;
     TcpFlow server_;
     Timer<Connection> idle_timer_;
+
+    std::vector<Timer<Connection>*> event_timers_;
 };
 
 #endif // CONNECTION_H

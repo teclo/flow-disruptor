@@ -5,6 +5,8 @@
 
 #include "connection.h"
 
+#include <functional>
+
 #include "io-backend.h"
 #include "log.h"
 
@@ -103,7 +105,8 @@ Connection::Connection(Profile* profile, Packet* p, State* state)
       client_(state, p->from_iface_),
       server_(state, p->from_iface_->other()),
       idle_timer_(state, this, std::mem_fn(&Connection::close)) {
-    printf("New connection %p\n", this);
+    info("New connection %p using profile %s\n", this,
+         profile->profile_config().id().c_str());
 
     client_.set_other(&server_);
     server_.set_other(&client_);
@@ -111,6 +114,38 @@ Connection::Connection(Profile* profile, Packet* p, State* state)
     server_.queue_packet(p);
 
     idle_timer_.reschedule(120);
+
+    for (auto event : profile->profile_config().timed_event()) {
+        auto apply = std::bind(std::mem_fn(&Connection::apply_timed_effect),
+                               std::placeholders::_1,
+                               event);
+        auto revert = std::bind(std::mem_fn(&Connection::revert_timed_effect),
+                                std::placeholders::_1,
+                                event);
+
+        event_timers_.push_back(new Timer<Connection>(state, this, apply));
+        event_timers_.back()->reschedule(event.trigger_time());
+
+        event_timers_.push_back(new Timer<Connection>(state, this, revert));
+        event_timers_.back()->reschedule(event.trigger_time() +
+                                         event.duration());
+    }
+}
+
+Connection::~Connection() {
+    for (auto event_timer : event_timers_) {
+        delete event_timer;
+    }
+}
+
+void Connection::apply_timed_effect(const FlowDisruptorTimedEvent& event) {
+    info("Applying extra delay of %lf", event.extra_rtt());
+    client_.set_delay(client_.delay() + event.extra_rtt());
+}
+
+void Connection::revert_timed_effect(const FlowDisruptorTimedEvent& event) {
+    info("Reverting extra delay of %lf", event.extra_rtt());
+    client_.set_delay(client_.delay() - event.extra_rtt());
 }
 
 void Connection::receive(Packet* p) {
@@ -124,11 +159,9 @@ void Connection::receive(Packet* p) {
         if (!from_client && client_.is_valid_synack(p)) {
             connection_state_ = STATE_SYN_ACK;
             double server_side_rtt = ev_now(state_->loop) - first_syn_timestamp_;
-            printf("server side rtt: %lf\n", server_side_rtt);
             double target_rtt = profile_->profile_config().target_rtt();
             if (target_rtt && target_rtt > server_side_rtt) {
                 double delay_s = target_rtt - server_side_rtt;
-                printf("setting delay: %lf\n", delay_s);
                 client_.set_delay(delay_s);
             }
         } else if (from_client && source_flow->is_identical_syn(p)) {
@@ -136,10 +169,6 @@ void Connection::receive(Packet* p) {
         } else {
             // Getting packets that don't make sense for this handshake.
             // Give up on the connection.
-            printf("%d %d %d\n",
-                   from_client,
-                   p->tcph_->syn,
-                   p->tcph_->ack);
             warn("Handshake confusion, expected SYN-ACK from server. "
                  "Bailing out.\n");
             goto fail;
@@ -155,10 +184,6 @@ void Connection::receive(Packet* p) {
         } else if (from_client && source_flow->is_valid_3whs_ack(p)) {
             connection_state_ = STATE_ESTABLISHED;
         } else {
-            printf("%d %d %d\n",
-                   from_client,
-                   p->tcph_->syn,
-                   p->tcph_->ack);
             // Getting packets that don't make sense for this handshake.
             // Give up on the connection.
             warn("Handshake confusion, expected ACK from client. "
@@ -185,7 +210,7 @@ fail:
 }
 
 void Connection::close() {
-    printf("close %p\n", this);
+    info("Closing connection %p\n", this);
     state_->connections->remove(this);
     delete this;
 }

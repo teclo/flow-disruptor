@@ -6,4 +6,13 @@ message FlowDisruptorProfile {
     required string id = 1;
     optional string filter = 2;
     optional double target_rtt = 3;
+
+    repeated FlowDisruptorTimedEvent timed_event = 4;
 }
+
+message FlowDisruptorTimedEvent {
+    optional double trigger_time = 1;
+    optional double duration = 2;
+    optional double extra_rtt = 3;
+}
+
