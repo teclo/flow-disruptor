@@ -53,7 +53,7 @@ private:
     // should be transmitted at the timestamp indicated in the first
     // element of the pair.
     std::deque<std::pair<ev_tstamp, Packet*> > packets_;
-    Timer<TcpFlow> transmit_timer_;
+    Timer transmit_timer_;
 
     double delay_s_;
 
@@ -99,8 +99,8 @@ public:
 protected:
     explicit Connection(Profile* profile, Packet* p, State* state);
 
-    void apply_timed_effect(const TimedEvent& event);
-    void revert_timed_effect(const TimedEvent& event);
+    void apply_timed_effect(Timer* timer, const TimedEvent& event);
+    void revert_timed_effect(Timer* timer, const TimedEvent& event);
 
 private:
     State* state_;
@@ -112,9 +112,9 @@ private:
     std::string id_;
     TcpFlow client_;
     TcpFlow server_;
-    Timer<Connection> idle_timer_;
+    Timer idle_timer_;
 
-    std::vector<Timer<Connection>*> event_timers_;
+    std::vector<Timer*> event_timers_;
 };
 
 #endif // CONNECTION_H

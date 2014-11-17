@@ -18,7 +18,7 @@ TcpFlow::TcpFlow(State* state, Profile* profile,
     : state_(state),
       iface_(iface),
       dumper_(iface->name() + "-" + id + ".cap"),
-      transmit_timer_(state, this, std::mem_fn(&TcpFlow::transmit_timeout)),
+      transmit_timer_(state, [this] (Timer* t) { transmit_timeout(); }),
       delay_s_(0),
       received_rst_(false),
       received_fin_(false),
@@ -145,7 +145,7 @@ Connection::Connection(Profile* profile, Packet* p, State* state)
       id_(stringprintf("%.9lf", ev_time())),
       client_(state, profile, p->from_iface_, id_),
       server_(state, profile, p->from_iface_->other(), id_),
-      idle_timer_(state, this, std::mem_fn(&Connection::close)) {
+      idle_timer_(state, ([this] (Timer* t) { close(); })) {
     info("New connection %p using profile %s\n", this,
          profile->profile_config().id().c_str());
 
@@ -166,17 +166,17 @@ Connection::Connection(Profile* profile, Packet* p, State* state)
     idle_timer_.reschedule(120);
 
     for (auto event : profile->profile_config().timed_event()) {
-        auto apply = std::bind(std::mem_fn(&Connection::apply_timed_effect),
-                               std::placeholders::_1,
-                               event);
-        auto revert = std::bind(std::mem_fn(&Connection::revert_timed_effect),
-                                std::placeholders::_1,
-                                event);
+        auto apply = [&] (Timer* t) {
+            apply_timed_effect(t, event);
+        };
+        auto revert = [&] (Timer* t) {
+            revert_timed_effect(t, event);
+        };
 
-        event_timers_.push_back(new Timer<Connection>(state, this, apply));
+        event_timers_.push_back(new Timer(state, apply));
         event_timers_.back()->reschedule(event.trigger_time());
 
-        event_timers_.push_back(new Timer<Connection>(state, this, revert));
+        event_timers_.push_back(new Timer(state, revert));
         event_timers_.back()->reschedule(event.trigger_time() +
                                          event.duration());
     }
@@ -188,7 +188,7 @@ Connection::~Connection() {
     }
 }
 
-void Connection::apply_timed_effect(const TimedEvent& event) {
+void Connection::apply_timed_effect(Timer* timer, const TimedEvent& event) {
     if (event.has_extra_rtt()) {
         info("Applying extra delay of %lf", event.extra_rtt());
         client_.set_delay(client_.delay() + event.extra_rtt());
@@ -198,7 +198,7 @@ void Connection::apply_timed_effect(const TimedEvent& event) {
     server_.throttler()->apply(event.uplink());
 }
 
-void Connection::revert_timed_effect(const TimedEvent& event) {
+void Connection::revert_timed_effect(Timer* timer, const TimedEvent& event) {
     if (event.has_extra_rtt()) {
         info("Reverting extra delay of %lf", event.extra_rtt());
         client_.set_delay(client_.delay() - event.extra_rtt());

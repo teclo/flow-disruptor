@@ -35,7 +35,7 @@ private:
     uint64_t max_capacity_;
     uint64_t capacity_per_tick_;
 
-    Timer<Throttler> tick_timer_;
+    Timer tick_timer_;
 
     std::deque<std::pair<uint32_t, Callback>> queue_;
     uint64_t queued_cost_;

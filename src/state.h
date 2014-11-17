@@ -29,16 +29,15 @@ struct libev_watcher {
     Payload payload;
 };
 
-template<class T>
 struct Timer {
-    typedef std::function<void(T*)> Method;
-    typedef std::function<void()> Callback;
-    typedef libev_watcher<ev_timer, Callback> watcher;
+    typedef std::function<void(Timer*)> Callback;
+    typedef libev_watcher<ev_timer, Timer*> Watcher;
 
-    Timer(State* state, T* obj, const Method& method)
-        : state_(state) {
-        timer_.payload = std::bind(method, obj);
-        ev_timer_init(&timer_.watcher, callback, 0, 0);
+    Timer(State* state, const Callback& callback)
+        : state_(state),
+          callback_(callback) {
+        watcher_.payload = this;
+        ev_timer_init(&watcher_.watcher, callback_tramp, 0, 0);
     }
 
     ~Timer() {
@@ -47,21 +46,23 @@ struct Timer {
 
     void reschedule(ev_tstamp delay) {
         stop();
-        ev_timer_set(&timer_.watcher, delay, 0);
-        ev_timer_start(state_->loop, &timer_.watcher);
+        ev_timer_set(&watcher_.watcher, delay, 0);
+        ev_timer_start(state_->loop, &watcher_.watcher);
     }
 
     void stop() {
-        ev_timer_stop(state_->loop, &timer_.watcher);
+        ev_timer_stop(state_->loop, &watcher_.watcher);
     }
 
-    static void callback(struct ev_loop* loop, ev_timer* w, int revents) {
-        auto timer = reinterpret_cast<watcher*>(w);
-        timer->payload();
+    static void callback_tramp(struct ev_loop* loop, ev_timer* w, int revents) {
+        auto watcher = reinterpret_cast<Watcher*>(w);
+        auto timer = watcher->payload;
+        timer->callback_(timer);
     }
 
     State* state_;
-    watcher timer_;
+    Watcher watcher_;
+    Callback callback_;
 };
 
 #endif

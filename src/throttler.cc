@@ -9,7 +9,7 @@
 
 Throttler::Throttler(State* state)
     : enabled_(false),
-      tick_timer_(state, this, std::mem_fn(&Throttler::tick)),
+      tick_timer_(state, [this] (Timer*) { tick(); }),
       queued_cost_(0),
       max_queue_(0) {
 }
