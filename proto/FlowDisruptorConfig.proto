@@ -17,6 +17,8 @@ message FlowDisruptorProfile {
 message TimedEvent {
     optional double trigger_time = 1;
     optional double duration = 2;
+    optional double repeat_interval = 8;
+
     optional double extra_rtt = 3;
 
     optional LinkProperties downlink = 6;

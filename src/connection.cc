@@ -166,10 +166,10 @@ Connection::Connection(Profile* profile, Packet* p, State* state)
     idle_timer_.reschedule(120);
 
     for (auto event : profile->profile_config().timed_event()) {
-        auto apply = [&] (Timer* t) {
+        auto apply = [this, event] (Timer* t) {
             apply_timed_effect(t, event);
         };
-        auto revert = [&] (Timer* t) {
+        auto revert = [this, event] (Timer* t) {
             revert_timed_effect(t, event);
         };
 
@@ -196,6 +196,10 @@ void Connection::apply_timed_effect(Timer* timer, const TimedEvent& event) {
 
     client_.throttler()->apply(event.downlink());
     server_.throttler()->apply(event.uplink());
+
+    if (event.has_repeat_interval()) {
+        timer->reschedule(event.repeat_interval());
+    }
 }
 
 void Connection::revert_timed_effect(Timer* timer, const TimedEvent& event) {
@@ -206,6 +210,10 @@ void Connection::revert_timed_effect(Timer* timer, const TimedEvent& event) {
 
     client_.throttler()->revert(event.downlink());
     server_.throttler()->revert(event.uplink());
+
+    if (event.has_repeat_interval()) {
+        timer->reschedule(event.repeat_interval());
+    }
 }
 
 void Connection::receive(Packet* p) {
