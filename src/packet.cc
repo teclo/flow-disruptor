@@ -186,7 +186,9 @@ bool Packet::parse_tcp(pkt_tcp_t* tcph, size_t length) {
     mutable_tcp()->set_ack_seq(ntohl(tcph->ack_seq));
 
     uint32_t payload_len = length - tcph->doff * 4;
-    mutable_tcp()->set_end_seq(tcp().seq() + payload_len);
+    if (payload_len) {
+        mutable_tcp()->set_end_seq(tcp().seq() + payload_len);
+    }
 
     return true;
 }

@@ -10,6 +10,7 @@
 
 #include "io-backend.h"
 #include "log.h"
+#include "sequtil.h"
 #include "strutil.h"
 
 TcpFlow::TcpFlow(State* state, Profile* profile,
@@ -43,13 +44,22 @@ void TcpFlow::record_packet_rx(Packet* p) {
         received_rst_ = true;
     }
 
-    // FIXME: Update sequence number state.
+    if (p->tcp().syn()) {
+        other_->snd_una_ = p->tcp().seq();
+        snd_nxt_ = p->tcp().seq();
+    }
+
+    if (p->tcp().ack()) {
+        snd_una_ = seq_max(snd_una_, p->tcp().ack_seq());
+    }
+    if (p->tcp().has_end_seq()) {
+        snd_nxt_ = seq_max(snd_nxt_, p->tcp().end_seq());
+    }
+
     dumper_.dump_packet(p);
 }
 
 void TcpFlow::queue_packet_tx(Packet* p) {
-    // FIXME: Update sequence number state.
-
     auto callback = [&] (Packet copy) {
         packets_.push_back(std::make_pair(ev_now(state_->loop) + delay_s_,
                                           new Packet(copy)));
