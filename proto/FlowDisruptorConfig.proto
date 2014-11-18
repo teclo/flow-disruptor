@@ -30,4 +30,5 @@ message LinkProperties {
     optional uint32 max_queue_bytes = 3;
 
     optional int32 throughput_kbps_change = 2;
+    optional int32 drop_bytes = 4;
 }

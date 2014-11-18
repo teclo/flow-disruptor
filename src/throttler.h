@@ -40,6 +40,8 @@ private:
     std::deque<std::pair<uint32_t, Callback>> queue_;
     uint64_t queued_cost_;
     uint64_t max_queue_;
+
+    int32_t drop_bytes_;
 };
 
 #endif // _THROTTLER_H_

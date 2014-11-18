@@ -176,9 +176,11 @@ Connection::Connection(Profile* profile, Packet* p, State* state)
         event_timers_.push_back(new Timer(state, apply));
         event_timers_.back()->reschedule(event.trigger_time());
 
-        event_timers_.push_back(new Timer(state, revert));
-        event_timers_.back()->reschedule(event.trigger_time() +
-                                         event.duration());
+        if (event.has_duration()) {
+            event_timers_.push_back(new Timer(state, revert));
+            event_timers_.back()->reschedule(event.trigger_time() +
+                                             event.duration());
+        }
     }
 }
 

@@ -11,21 +11,35 @@ Throttler::Throttler(State* state)
     : enabled_(false),
       tick_timer_(state, [this] (Timer*) { tick(); }),
       queued_cost_(0),
-      max_queue_(0) {
+      max_queue_(0),
+      drop_bytes_(0) {
 }
 
 void Throttler::enable(const LinkProperties& properties) {
-    enabled_ = true;
-    throttle_kbps_ = properties.throughput_kbps();
-    if (properties.has_max_queue_bytes()) {
-        max_queue_ = properties.max_queue_bytes();
+    if (properties.has_throughput_kbps()) {
+        enabled_ = true;
+        throttle_kbps_ = properties.throughput_kbps();
+        if (properties.has_max_queue_bytes()) {
+            max_queue_ = properties.max_queue_bytes();
+        }
     }
+
+    drop_bytes_ += properties.drop_bytes();
 
     recompute();
     tick_timer_.reschedule(0.001);
 }
 
 void Throttler::insert(uint64_t cost, const Throttler::Callback& callback) {
+    if (drop_bytes_) {
+        drop_bytes_ -= cost;
+        if (drop_bytes_ < 0) {
+            drop_bytes_ = 0;
+        }
+        printf("drop\n");
+        return;
+    }
+
     if (!enabled_) {
         callback();
     } else if (capacity_ > cost) {
@@ -69,19 +83,24 @@ void Throttler::recompute() {
 void Throttler::apply(const LinkProperties& properties) {
     int32_t delta = properties.throughput_kbps_change();
 
-    if (delta) {
+    if (delta && enabled_) {
         throttle_kbps_ += delta;
-        info("Applying throughput change of %d (now %ld)",
+        info("Applying throughput change of %d kbps (now %ld kbps)",
              delta,
              throttle_kbps_);
         recompute();
+    }
+
+    if (properties.has_drop_bytes()) {
+        drop_bytes_ += properties.drop_bytes();
+        info("Dropping next %d bytes", drop_bytes_);
     }
 }
 
 void Throttler::revert(const LinkProperties& properties) {
     int32_t delta = properties.throughput_kbps_change();
 
-    if (delta) {
+    if (delta && enabled_) {
         throttle_kbps_ -= delta;
         info("Reverting throughput change of %d (now %ld)",
              delta,
