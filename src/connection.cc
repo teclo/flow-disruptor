@@ -150,7 +150,8 @@ bool TcpFlow::should_close() {
 }
 
 bool TcpFlow::can_close() {
-    if (received_rst_ || packets_.empty()) {
+    if (received_rst_ ||
+        (packets_.empty() && !throttler_.has_queued_data())) {
         return true;
     }
 
@@ -303,7 +304,7 @@ void Connection::receive(Packet* p) {
 
     case STATE_CLOSING:
         if (source_flow->can_close() &&
-            source_flow->can_close()) {
+            target_flow->can_close()) {
             close();
             return;
         }

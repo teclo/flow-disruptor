@@ -24,9 +24,12 @@ public:
 
     void insert(uint64_t cost, const Callback& callback);
 
+    bool has_queued_data() { return !queue_.empty(); }
+
 private:
     void tick();
     void recompute();
+    void transmit();
 
     bool enabled_;
 

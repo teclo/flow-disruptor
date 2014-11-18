@@ -42,20 +42,16 @@ void Throttler::insert(uint64_t cost, const Throttler::Callback& callback) {
 
     if (!enabled_) {
         callback();
-    } else if (capacity_ > cost) {
-        capacity_ -= cost;
-        callback();
     } else if (max_queue_ && queued_cost_ > max_queue_) {
         // Queue full, drop the packet.
     } else {
         queue_.push_back(std::make_pair(cost, callback));
         queued_cost_ += cost;
+        transmit();
     }
 }
 
-void Throttler::tick() {
-    capacity_ = std::min(max_capacity_,
-                         capacity_ + capacity_per_tick_);
+void Throttler::transmit() {
     while (!queue_.empty()) {
         uint64_t cost = queue_.front().first;
         if (capacity_ < cost) {
@@ -66,7 +62,12 @@ void Throttler::tick() {
         queue_.front().second();
         queue_.pop_front();
     }
+}
 
+void Throttler::tick() {
+    capacity_ = std::min(max_capacity_,
+                         capacity_ + capacity_per_tick_);
+    transmit();
     tick_timer_.reschedule(0.001);
 }
 
