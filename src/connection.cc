@@ -137,6 +137,23 @@ bool TcpFlow::is_identical_synack(Packet* p) {
     return false;
 }
 
+bool TcpFlow::should_close() {
+    if (received_rst_ ||
+        (received_fin_ && other_->received_fin_)) {
+        return true;
+    }
+
+    return false;
+}
+
+bool TcpFlow::can_close() {
+    if (received_rst_ || packets_.empty()) {
+        return true;
+    }
+
+    return false;
+}
+
 Connection::Connection(Profile* profile, Packet* p, State* state)
     : state_(state),
       profile_(profile),
@@ -232,6 +249,10 @@ void Connection::receive(Packet* p) {
 
     source_flow->record_packet_rx(p);
 
+    if (source_flow->should_close()) {
+        connection_state_ = STATE_CLOSING;
+    }
+
     switch (connection_state_) {
     case STATE_SYN:
         if (!from_client && client_.is_valid_synack(p)) {
@@ -278,6 +299,11 @@ void Connection::receive(Packet* p) {
         break;
 
     case STATE_CLOSING:
+        if (source_flow->can_close() &&
+            source_flow->can_close()) {
+            close();
+            return;
+        }
         break;
     }
 

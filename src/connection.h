@@ -40,6 +40,9 @@ public:
     double delay() const { return delay_s_; }
     void set_delay(double delay_s) { delay_s_ = delay_s; }
 
+    bool should_close();
+    bool can_close();
+
 private:
     void reschedule_transmit_timer();
     void transmit();
