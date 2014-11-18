@@ -61,15 +61,20 @@ static void handle_packet(struct ev_loop *loop, ev_io *w, int revents) {
     }
 }
 
-int main(int argc, char** argv) {
-    google::SetUsageMessage("flow-disruptor [flags]");
-    google::ParseCommandLineFlags(&argc, &argv, true);
-
+void reload_config() {
     if (!FLAGS_config.empty()) {
+        info("Loading configuration from %s", FLAGS_config.c_str());
         if (!state.config.update(FLAGS_config)) {
             fail("Failed to read config during initial startup, quitting\n");
         }
     }
+}
+
+int main(int argc, char** argv) {
+    google::SetUsageMessage("flow-disruptor [flags]");
+    google::ParseCommandLineFlags(&argc, &argv, true);
+
+    reload_config();
 
     IoInterface downlink_iface(FLAGS_downlink_iface, IoInterface::DOWNLINK);
     IoInterface uplink_iface(FLAGS_uplink_iface, IoInterface::UPLINK);
@@ -98,6 +103,13 @@ int main(int argc, char** argv) {
             ev_io_start(state.loop, &watcher->watcher);
         }
     }
+
+    SignalHandler sigint_handler(&state,
+                                 [] () {
+                                     ev_unloop(state.loop, EVUNLOOP_ALL);
+                                 },
+                                 SIGINT);
+    SignalHandler sighup_handler(&state, &reload_config, SIGHUP);
 
     ev_run(state.loop, 0);
 

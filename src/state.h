@@ -60,6 +60,36 @@ struct Timer {
         timer->callback_(timer);
     }
 
+private:
+    State* state_;
+    Watcher watcher_;
+    Callback callback_;
+};
+
+struct SignalHandler {
+    typedef std::function<void()> Callback;
+    typedef libev_watcher<ev_signal, SignalHandler*> Watcher;
+
+    SignalHandler(State* state, const Callback& callback, int signum)
+        : state_(state),
+          callback_(callback) {
+        watcher_.payload = this;
+        ev_signal_init(&watcher_.watcher, callback_tramp, signum);
+        ev_signal_start(state->loop, &watcher_.watcher);
+    }
+
+    ~SignalHandler() {
+    }
+
+    static void callback_tramp(struct ev_loop* loop,
+                               ev_signal* w,
+                               int revents) {
+        auto watcher = reinterpret_cast<Watcher*>(w);
+        auto handler = watcher->payload;
+        handler->callback_();
+    }
+
+private:
     State* state_;
     Watcher watcher_;
     Callback callback_;
