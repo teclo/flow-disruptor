@@ -45,7 +45,7 @@ void Throttler::insert(uint64_t cost, const Throttler::Callback& callback) {
     } else if (capacity_ > cost) {
         capacity_ -= cost;
         callback();
-    } if (max_queue_ && queued_cost_ > max_queue_) {
+    } else if (max_queue_ && queued_cost_ > max_queue_) {
         // Queue full, drop the packet.
     } else {
         queue_.push_back(std::make_pair(cost, callback));
