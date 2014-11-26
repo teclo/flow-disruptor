@@ -105,6 +105,9 @@ protected:
     void apply_timed_effect(Timer* timer, const TimedEvent& event);
     void revert_timed_effect(Timer* timer, const TimedEvent& event);
 
+    void apply_effect(const Effect& effect);
+    void revert_effect(const Effect& effect);
+
 private:
     State* state_;
     Profile* profile_;

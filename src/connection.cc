@@ -212,31 +212,37 @@ Connection::~Connection() {
 }
 
 void Connection::apply_timed_effect(Timer* timer, const TimedEvent& event) {
-    if (event.has_extra_rtt()) {
-        info("Applying extra delay of %lf", event.extra_rtt());
-        client_.set_delay(client_.delay() + event.extra_rtt());
-    }
-
-    client_.throttler()->apply(event.downlink());
-    server_.throttler()->apply(event.uplink());
-
+    apply_effect(event.effect());
     if (event.has_repeat_interval()) {
         timer->reschedule(event.repeat_interval());
     }
 }
 
 void Connection::revert_timed_effect(Timer* timer, const TimedEvent& event) {
-    if (event.has_extra_rtt()) {
-        info("Reverting extra delay of %lf", event.extra_rtt());
-        client_.set_delay(client_.delay() - event.extra_rtt());
-    }
-
-    client_.throttler()->revert(event.downlink());
-    server_.throttler()->revert(event.uplink());
-
+    revert_effect(event.effect());
     if (event.has_repeat_interval()) {
         timer->reschedule(event.repeat_interval());
     }
+}
+
+void Connection::apply_effect(const Effect& effect) {
+    if (effect.has_extra_rtt()) {
+        info("Applying extra delay of %lf", effect.extra_rtt());
+        client_.set_delay(client_.delay() + effect.extra_rtt());
+    }
+
+    client_.throttler()->apply(effect.downlink());
+    server_.throttler()->apply(effect.uplink());
+}
+
+void Connection::revert_effect(const Effect& effect) {
+    if (effect.has_extra_rtt()) {
+        info("Reverting extra delay of %lf", effect.extra_rtt());
+        client_.set_delay(client_.delay() - effect.extra_rtt());
+    }
+
+    client_.throttler()->revert(effect.downlink());
+    server_.throttler()->revert(effect.uplink());
 }
 
 void Connection::receive(Packet* p) {

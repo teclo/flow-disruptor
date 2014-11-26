@@ -17,18 +17,32 @@ message FlowDisruptorProfile {
 message TimedEvent {
     optional double trigger_time = 1;
     optional double duration = 2;
-    optional double repeat_interval = 8;
+    optional double repeat_interval = 3;
 
+    optional Effect effect = 4;
+}
+
+message VolumeTriggeredEvent {
+    optional uint64 trigger_at_bytes = 1;
+    optional uint64 active_for_bytes = 2;
+    optional uint64 repeat_after_bytes = 3;
+    optional LinkPropertiesChange effect = 4;
+}
+
+message Effect {
     optional double extra_rtt = 3;
-
-    optional LinkProperties downlink = 6;
-    optional LinkProperties uplink = 7;
+    optional LinkPropertiesChange downlink = 6;
+    optional LinkPropertiesChange uplink = 7;
 }
 
 message LinkProperties {
     optional uint32 throughput_kbps = 1;
     optional uint32 max_queue_bytes = 3;
 
+    repeated VolumeTriggeredEvent volume_event = 2;
+}
+
+message LinkPropertiesChange {
     optional int32 throughput_kbps_change = 2;
     optional int32 drop_bytes = 4;
 }

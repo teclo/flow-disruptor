@@ -7,6 +7,7 @@
 #define _THROTTLER_H_
 
 #include <deque>
+#include <map>
 #include <functional>
 
 #include "state.h"
@@ -19,8 +20,8 @@ public:
 
     void enable(const LinkProperties& properties);
 
-    void apply(const LinkProperties& properties);
-    void revert(const LinkProperties& properties);
+    void apply(const LinkPropertiesChange& properties);
+    void revert(const LinkPropertiesChange& properties);
 
     void insert(uint64_t cost, const Callback& callback);
 
@@ -33,6 +34,8 @@ private:
 
     bool enabled_;
 
+    uint64_t total_bytes_;
+
     int64_t throttle_kbps_;
     uint64_t capacity_;
     uint64_t max_capacity_;
@@ -40,7 +43,11 @@ private:
 
     Timer tick_timer_;
 
+    std::multimap<uint64_t, VolumeTriggeredEvent> pending_events_;
+    std::multimap<uint64_t, VolumeTriggeredEvent> active_events_;
+
     std::deque<std::pair<uint32_t, Callback>> queue_;
+
     uint64_t queued_cost_;
     uint64_t max_queue_;
 

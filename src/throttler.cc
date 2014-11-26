@@ -9,6 +9,7 @@
 
 Throttler::Throttler(State* state)
     : enabled_(false),
+      total_bytes_(0),
       tick_timer_(state, [this] (Timer*) { tick(); }),
       queued_cost_(0),
       max_queue_(0),
@@ -24,19 +25,69 @@ void Throttler::enable(const LinkProperties& properties) {
         }
     }
 
-    drop_bytes_ += properties.drop_bytes();
+    for (auto event : properties.volume_event()) {
+        if (event.has_trigger_at_bytes()) {
+            pending_events_.insert(std::make_pair(event.trigger_at_bytes(),
+                                                 event));
+        }
+    }
 
     recompute();
     tick_timer_.reschedule(0.001);
 }
 
 void Throttler::insert(uint64_t cost, const Throttler::Callback& callback) {
+    for (auto it = pending_events_.begin();
+         it != pending_events_.end();
+         it = pending_events_.begin()) {
+        auto bytes = it->first;
+        if (bytes > total_bytes_) {
+            break;
+        }
+
+        auto event = it->second;
+        pending_events_.erase(it);
+        apply(event.effect());
+
+        if (event.has_active_for_bytes()) {
+            uint64_t stop_at_bytes = event.active_for_bytes() +
+                bytes;
+            active_events_.insert(std::make_pair(stop_at_bytes,
+                                                 event));
+        } else if (event.has_repeat_after_bytes()) {
+            uint64_t retrigger_bytes = event.repeat_after_bytes() +
+                bytes;
+            pending_events_.insert(std::make_pair(retrigger_bytes,
+                                                  event));
+        }
+    }
+
+    for (auto it = active_events_.begin();
+         it != active_events_.end();
+         it = active_events_.begin()) {
+        auto bytes = it->first;
+        if (bytes > total_bytes_) {
+            break;
+        }
+
+        auto event = it->second;
+        active_events_.erase(it);
+        revert(event.effect());
+        if (event.has_repeat_after_bytes()) {
+            uint64_t retrigger_bytes = event.repeat_after_bytes() +
+                bytes;
+            pending_events_.insert(std::make_pair(retrigger_bytes,
+                                                  event));
+        }
+    }
+
+    total_bytes_ += cost;
+
     if (drop_bytes_) {
         drop_bytes_ -= cost;
         if (drop_bytes_ < 0) {
             drop_bytes_ = 0;
         }
-        printf("drop\n");
         return;
     }
 
@@ -81,7 +132,7 @@ void Throttler::recompute() {
     capacity_per_tick_ = max_capacity_ * 0.01;
 }
 
-void Throttler::apply(const LinkProperties& properties) {
+void Throttler::apply(const LinkPropertiesChange& properties) {
     int32_t delta = properties.throughput_kbps_change();
 
     if (delta && enabled_) {
@@ -98,7 +149,7 @@ void Throttler::apply(const LinkProperties& properties) {
     }
 }
 
-void Throttler::revert(const LinkProperties& properties) {
+void Throttler::revert(const LinkPropertiesChange& properties) {
     int32_t delta = properties.throughput_kbps_change();
 
     if (delta && enabled_) {
