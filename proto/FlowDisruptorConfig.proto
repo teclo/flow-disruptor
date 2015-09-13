@@ -8,10 +8,11 @@ message FlowDisruptorProfile {
     // reloaded, and as a component of the trace file names.
     required string id = 1;
     // The filter for the traffic that matches this profile. If multiple
-    // profiles match, the first one will be used.
+    // profiles match, the first one will be used. The filter is only checked
+    // for the SYN packet.
     optional string filter = 2;
     // If true, generate two traces file for each connection matching
-    // this profile. (Once for each interface).
+    // this profile. (One file for each interface).
     optional bool dump_pcap = 5;
 
     // The RTT target (uplink RTT + downlink RTT + artificial delay) for
