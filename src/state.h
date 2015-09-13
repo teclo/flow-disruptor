@@ -12,6 +12,7 @@
 #include "config.h"
 #include "connection-table.h"
 
+// All application state.
 struct State {
     State() :
         connections(ConnectionTable::make()),
@@ -29,10 +30,13 @@ struct libev_watcher {
     Payload payload;
 };
 
+// A C++ wrapper around libev timers.
 struct Timer {
     typedef std::function<void(Timer*)> Callback;
     typedef libev_watcher<ev_timer, Timer*> Watcher;
 
+    // Make a timer bound to the event loop of the specified application
+    // instance. Call the callback() every time the timer expires.
     Timer(State* state, const Callback& callback)
         : state_(state),
           callback_(callback) {
@@ -44,12 +48,15 @@ struct Timer {
         stop();
     }
 
+    // Schedule the timer to be triggered at this many seconds from now
+    // (whether it's currently scheduled or not).
     void reschedule(ev_tstamp delay) {
         stop();
         ev_timer_set(&watcher_.watcher, delay, 0);
         ev_timer_start(state_->loop, &watcher_.watcher);
     }
 
+    // Cancel the timer.
     void stop() {
         ev_timer_stop(state_->loop, &watcher_.watcher);
     }
@@ -66,6 +73,7 @@ private:
     Callback callback_;
 };
 
+// Wrapper around libev signal handlers.
 struct SignalHandler {
     typedef std::function<void()> Callback;
     typedef libev_watcher<ev_signal, SignalHandler*> Watcher;

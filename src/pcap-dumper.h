@@ -10,6 +10,7 @@
 
 #include "packet.h"
 
+// Write packets to a trace file in pcap format.
 class PcapDumper {
 public:
     PcapDumper(const std::string& file);

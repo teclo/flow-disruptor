@@ -1,48 +1,83 @@
 message FlowDisruptorConfig {
+    // The configuration consists of a number of profiles.
     repeated FlowDisruptorProfile profile = 1;
 }
 
 message FlowDisruptorProfile {
+    // Unique ID; used for finding matching profiles when a profile is
+    // reloaded, and as a component of the trace file names.
     required string id = 1;
+    // The filter for the traffic that matches this profile. If multiple
+    // profiles match, the first one will be used.
     optional string filter = 2;
+    // If true, generate two traces file for each connection matching
+    // this profile. (Once for each interface).
     optional bool dump_pcap = 5;
 
+    // The RTT target (uplink RTT + downlink RTT + artificial delay) for
+    // this connection.
     optional double target_rtt = 3;
+    // Initial link properties for each interface.
     optional LinkProperties downlink = 6;
     optional LinkProperties uplink = 7;
 
+    // Events that happen to the connection at a specified time.
     repeated TimedEvent timed_event = 4;
 }
 
+// TimedEvents happen to a connection.
 message TimedEvent {
+    // Time (in seconds from beginning of connection) that the event
+    // happens on.
     optional double trigger_time = 1;
+    // How long (in seconds) the event lasts.
     optional double duration = 2;
+    // If non-zero, the event will be repeated at this interval (in seconds).
     optional double repeat_interval = 3;
 
+    // What actually happens when this event is triggered.
     optional Effect effect = 4;
 }
 
+// VolumeTriggeredEvents happen to a connection half, based on the amount
+// of data transferred in that direction.
 message VolumeTriggeredEvent {
+    // The event is triggered once this many bytes have been sent.
     optional uint64 trigger_at_bytes = 1;
+    // The event is active until this many bytes have been sent to it after
+    // it was triggered.
     optional uint64 active_for_bytes = 2;
+    // If non-zero, repeat the event this many bytes after the previous time
+    // the event happened.
     optional uint64 repeat_after_bytes = 3;
+    // What actually happens when this event is triggered.
     optional LinkPropertiesChange effect = 4;
 }
 
 message Effect {
+    // Add this amount of extra delay to the connection.
     optional double extra_rtt = 3;
+    // Properties that affect just one of the two interface.
     optional LinkPropertiesChange downlink = 6;
     optional LinkPropertiesChange uplink = 7;
 }
 
 message LinkProperties {
+    // Maximum throughput for data sent toward this interface.
     optional uint32 throughput_kbps = 1;
+    // Maximum amount of data that can be queued due to the throughput
+    // limit (there's no limit on the queuing from artificial latency).
+    // Any packets in excess of the maximum are dropped.
     optional uint32 max_queue_bytes = 3;
 
+    // Events that happen based on data transferred.
     repeated VolumeTriggeredEvent volume_event = 2;
 }
 
 message LinkPropertiesChange {
+    // Change the link throughput by this amount. When the event is over,
+    // undo the change.
     optional int32 throughput_kbps_change = 2;
+    // Drop all packets, until at least this many bytes have been dropped.
     optional int32 drop_bytes = 4;
 }

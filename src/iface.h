@@ -11,7 +11,8 @@
 
 class IoBackend;
 
-// A physical interface
+// A named physical interface, paired with another interface and having
+// a packet IO backend for reading / writing packets.
 class IoInterface {
 public:
     enum Direction {
@@ -30,6 +31,7 @@ public:
     IoBackend* io() { return io_; }
     void set_io(IoBackend* io) { io_ = io; }
 
+    // The opposite side of this interface pair.
     IoInterface* other() { return other_; }
     void set_other(IoInterface* other) { other_ = other; }
 

@@ -13,12 +13,17 @@
 #include "base.h"
 #include "packet.h"
 
+// A wrapper class for pcap filters. Takes a filter expression and
+// compiles it, and can then be used for matching packets against the
+// compiled expression.
 class PacketFilter {
 public:
-    explicit PacketFilter(const std::string& filter_);
+    explicit PacketFilter(const std::string& filter);
     ~PacketFilter();
 
+    // Was the provided filter expression valid?
     bool is_valid() const;
+    // Does this packet match the filter expression?
     bool packet_matches_filter(const Packet* p) const;
 
 private:
