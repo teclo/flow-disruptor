@@ -3,7 +3,7 @@
 The =flow-disruptor= is a deterministic per-flow network condition
 simulator. To unpack that description a bit, per-flow means that
 the network conditions are maintained and simulated separately for
-each TCP connection.
+each TCP connection (and in fact each flow of the connection).
 
 Deterministic means that we normalize as many network conditions as
 possible (e.g. RTTs, throughput), and any changes in conditions happen
