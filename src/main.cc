@@ -14,9 +14,10 @@
 #include "log.h"
 #include "state.h"
 
-DEFINE_string(config, "", "");
-DEFINE_string(downlink_iface, "", "");
-DEFINE_string(uplink_iface, "", "");
+DEFINE_string(config, "", "Name of configuration file (required)");
+DEFINE_string(downlink_iface, "",
+              "Name of downlink network interface (required)");
+DEFINE_string(uplink_iface, "", "Name of uplink network interface (required)");
 
 State state;
 
