@@ -161,7 +161,7 @@ Install the following dependencies.
 - libev
 - protobuf
 
-Build with =cmake --build .=, the output will be in =bin/flow-disruptor/=.
+Build with =cmake --build . && make=, the output will be in =bin/flow-disruptor/=.
 
 ** Running
 
