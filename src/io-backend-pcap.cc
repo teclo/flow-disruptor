@@ -46,6 +46,11 @@ public:
         PCAP(pcap_, pcap_set_snaplen(pcap_, snaplen));
         PCAP(pcap_, pcap_set_timeout(pcap_, 0));
         PCAP(pcap_, pcap_set_promisc(pcap_, 1));
+        // pcap's TPACKET_V3 support doesn't work well in Linux <
+        // 3.19, packet delivery is unreliable and jittery. Luckily
+        // asking for unbuffered packet delivery makes it fall back to
+        // TPACKET_V2.
+        PCAP(pcap_, pcap_set_immediate_mode(pcap_, 1));
 
         // 8MB buffer size. Not a totally arbitrary number. The assumptions:
         //
@@ -61,7 +66,6 @@ public:
         PCAP(pcap_, pcap_set_buffer_size(pcap_, 8*1024*1024));
         PCAP(pcap_, pcap_activate(pcap_));
         PCAP(pcap_, pcap_setnonblock(pcap_, 1, errbuf));
-        PCAP(pcap_, pcap_setnonblock(pcap_, 1, errbuf));
 
         return true;
     }
@@ -72,7 +76,7 @@ public:
     }
 
     virtual bool inject(Packet* p) {
-        return pcap_inject(pcap_, (char*) p->ethh_, p->length_);
+        return pcap_inject(pcap_, (char*) p->ethh_, p->length_) == p->length_;
     }
 
     virtual bool receive(Packet* p) {
