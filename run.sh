@@ -15,7 +15,7 @@ function die {
 # Determine current network settings
 IP=$(ip addr show dev $DEV | perl -nle '/inet ([\d.]+)/ && print $1')
 [ -n "$IP" ] || die "Can't determine ip of $DEV"
-GW=$(ip route show default dev $DEV | perl -nle '/^default via (\S+)/ && print $1')
+GW=$(ip route show default dev $DEV | perl -nle '/^default via (\S+)/ && print $1' | head -1)
 [ -n "$GW" ] || die "Can't determine default route"
 
 # Restore original settings once we quit
@@ -52,10 +52,11 @@ echo 1 | tee /proc/sys/net/ipv4/conf/$DEV/rp_filter
 echo Switching to veth interface
 ifconfig veth0 up promisc
 ifconfig veth1 $IP up promisc
-ifconfig $DEV 0.0.0.0
+ifconfig $DEV down
+ifconfig $DEV up 0.0.0.0 promisc
 
 route add default gw $GW dev veth1
 # ip route change $TARGET via $GW dev veth1 proto static initrwnd 100
 
 # Start the flow-disruptor between veth0 and the real interface
-./flow-disruptor --downlink_iface veth0 --uplink_iface $DEV --config my.conf
+./bin/flow-disruptor --downlink_iface veth0 --uplink_iface $DEV --config my.conf
